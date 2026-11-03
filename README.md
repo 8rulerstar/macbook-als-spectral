@@ -52,8 +52,10 @@ channel ratio). This table is from macOS 27.0.1; the 27.2 repeat is at the end:
 ## The channel block really is five wide (driver struct)
 
 Because "five channels" is my reading of the bytes, I cross-checked it against
-Apple's driver symbols. The vendor-data type encoding of `AppleSPUVD6286`
-(seen in public kext symbol dumps) is:
+Apple's driver symbols. The `com.apple.driver.AppleALSColorSensor` kext carries
+an Objective-C type encoding for its als report, and the VD6286 vendor-data
+member is (source: the [blacktop/ipsw-diffs kext diff for macOS 27.0 betas
+26A5378n vs 26A5388g](https://github.com/blacktop/ipsw-diffs/blob/ee7c537d56250c6157860d81cb27273fcb30aaa8/macOS/27_0_26A5378n_vs_27_0_26A5388g/KEXTS/com.apple.driver.AppleALSColorSensor.md)):
 
 ```
 alsdefines_vendorvd6286_s = I [5i][5i][5s] f I f I I f I [5I]
@@ -62,6 +64,9 @@ alsdefines_vendorvd6286_s = I [5i][5i][5s] f I f I I f I [5I]
 The `[5i]` and `[5I]` arrays are five wide, consistent with five channels.
 I did not establish which of those arrays the bytes 20..39 correspond to, only
 that a five-channel block is what the driver describes and what I measured.
+The same encoding also lists other vendor variants (for example a
+`vendormorayfamily_s` with `[5f]` float arrays); which one a given machine uses
+is not shown by the encoding.
 
 ## What existing public tools read
 
@@ -85,7 +90,9 @@ Note this is a layout-specific point: it holds for the 122-byte report
 
 ```
 # Python 3.8+, Apple Silicon MacBook
-python3 als_probe.py out.csv
+python3 als_probe.py out.csv           # steps advance on a timer
+python3 als_probe.py out.csv --wait    # press Enter before each step
+python3 analyze.py out.csv             # per-step medians and channel ratios
 ```
 
 - The script finds the `als` HID device and runs an eight-step color sequence
@@ -96,8 +103,13 @@ python3 als_probe.py out.csv
 - Permissions: opening the HID device may require Input Monitoring for your
   terminal (System Settings, Privacy and Security, Input Monitoring), or `sudo`.
   If it cannot open, the script prints an error and exits.
-- Steps advance on a timer with no pause between them. Ctrl-C saves the rows
-  collected so far.
+- Without `--wait`, steps advance on a timer with no pause between them. Ctrl-C
+  saves the rows collected so far.
+- On a model other than Mac16,8 the script prints a note that the decode is
+  unverified there, then decodes anyway. Check the values look sensible.
+- `analyze.py` prints, for each step, the median of the second half of its
+  samples and each channel's share of c0..c4 (the method behind the tables
+  here). `--subtract-cover` subtracts the cover step from the channels first.
 - The script decodes channels only for the 122-byte report. On any other length
   it prints a warning and logs raw hex only.
 
@@ -135,8 +147,18 @@ established when it occurs or what its layout is. The script does not decode it.
 
 ## Reproduce
 
-Standard library only (`ctypes` + IOKit), no external dependencies. See
-`als_probe.py`.
+Standard library only (`ctypes` + IOKit), no external dependencies.
+
+The macOS 27.2 run behind the table above is in
+`data/macos27.2_mac16-8.csv` (same columns as `als_probe.py` output, raw report
+hex included). Its step labels differ from the current script's. To recompute
+the table:
+
+```
+python3 analyze.py data/macos27.2_mac16-8.csv
+```
+
+The 27.0.1 run is not included.
 
 ## License
 

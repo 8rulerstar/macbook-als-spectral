@@ -3,7 +3,10 @@
 # channels through a color test. Standard library only (ctypes + IOKit).
 #
 # Usage:
-#   python3 als_probe.py out.csv
+#   python3 als_probe.py out.csv           # steps advance on a timer
+#   python3 als_probe.py out.csv --wait    # press Enter before each step
+#
+# Summarize the CSV with: python3 analyze.py out.csv
 #
 # Requires Python 3.8+ on an Apple Silicon MacBook. Opening the HID device may
 # need Input Monitoring permission for your terminal (System Settings, Privacy
@@ -17,12 +20,26 @@
 #     any length other than 122 this script does NOT decode channels; it prints
 #     a warning and logs the raw hex. See the README note on 27.2.
 
-import ctypes, ctypes.util, struct, time, sys, csv, signal
+import ctypes, ctypes.util, struct, time, sys, csv, signal, subprocess
 
-if len(sys.argv) < 2:
-    print("usage: python3 als_probe.py out.csv")
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+if len(args) != 1:
+    print("usage: python3 als_probe.py out.csv [--wait]")
     sys.exit(1)
-out = sys.argv[1]
+out = args[0]
+wait = "--wait" in sys.argv
+
+# The decode was verified on one machine. Other models may share the 122-byte
+# length with a different field layout, so say so instead of decoding silently.
+VERIFIED_MODELS = {"Mac16,8"}
+try:
+    model = subprocess.run(["sysctl", "-n", "hw.model"], capture_output=True,
+                           text=True).stdout.strip()
+except OSError:
+    model = ""
+if model not in VERIFIED_MODELS:
+    print(f"NOTE: model {model or 'unknown'} is not one the decode was verified on "
+          f"({', '.join(sorted(VERIFIED_MODELS))}). Check the channel values make sense.")
 
 iokit = ctypes.CDLL(ctypes.util.find_library("IOKit"))
 cf = ctypes.CDLL(ctypes.util.find_library("CoreFoundation"))
@@ -125,6 +142,11 @@ signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
 t0[0] = time.time()
 try:
     for name, sec in PHASES:
+        if wait:
+            # Default Ctrl-C handling while blocked on input().
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+            input(f"\nnext: {name}. Get ready, then press Enter ")
+            signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
         cur[0] = name
         print(f"\n>>> {name} ({sec}s)", flush=True)
         end = time.time() + sec
