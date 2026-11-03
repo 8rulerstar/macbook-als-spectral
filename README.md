@@ -218,8 +218,7 @@ All three runs behind the tables and figures are in `data/` (same columns as
 - `data/macos27.2_mac16-8.csv`: taken with an earlier version of the script,
   seven steps (no flashlight) with labels such as `RED` and `cover sensor`.
 - `data/macos27.2_mac16-8_run2.csv`: current script with `--wait` (3 s settle,
-  10 s per step), sensor properly covered, phone at full brightness held flat
-  against the sensor.
+  10 s per step), sensor well covered (lux about 19 in the cover step).
 
 ```
 python3 analyze.py data/macos27.0.1_mac16-8.csv
