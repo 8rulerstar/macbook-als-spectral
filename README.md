@@ -35,8 +35,9 @@ a finger; at the flashlight step shine the phone's LED at it.
 <summary>More on the scripts</summary>
 
 - Without `--wait`, all eight steps run back to back on a timer (about 45 s,
-  5 to 6 s each), so have the screens ready. With `--wait`, reports that arrive
-  while waiting for Enter are dropped. In both modes Ctrl-C saves the rows
+  5 to 6 s each), so have the screens ready. With `--wait`, each step waits for
+  Enter, then counts down 3 s (reports in that window and while waiting are
+  dropped, so moving the phone into place is not recorded), then records 10 s. In both modes Ctrl-C saves the rows
   collected so far.
 - Output `out.csv` columns: `t, phase, c0..c4, lux, hex`.
 - Permissions: opening the HID device may require Input Monitoring for your

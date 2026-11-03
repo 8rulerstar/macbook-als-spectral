@@ -70,6 +70,10 @@ mode = V.in_dll(cf, "kCFRunLoopDefaultMode")
 
 # Color test phases: hold a solid-color screen (e.g. a phone) against the sensor
 # next to the webcam during each window. Each phase runs for a few seconds.
+# With --wait: seconds dropped after Enter, then seconds recorded per step.
+SETTLE = 3
+WAIT_SECONDS = 10
+
 PHASES = [
     ("baseline", 5),
     ("cover the sensor (finger next to the webcam)", 5),
@@ -153,13 +157,21 @@ try:
             signal.signal(signal.SIGINT, signal.default_int_handler)
             input(f"\nnext: {name}. Get ready, then press Enter ")
             signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
-            # Reports queued while waiting describe the previous light. Drop them
-            # so they are not logged under this step's label.
+            # Drop reports during a short countdown: those queued while waiting
+            # describe the previous light, and the next ones catch the screen
+            # being put in place. Then record for longer than in timer mode.
             drop[0] = True
-            cf.CFRunLoopRunInMode(mode, 0.3, False)
+            for n in range(SETTLE, 0, -1):
+                print(f"  hold still... {n}", flush=True)
+                t_end = time.time() + 1
+                while time.time() < t_end:
+                    if stop[0]:
+                        raise KeyboardInterrupt
+                    cf.CFRunLoopRunInMode(mode, 0.1, False)
             drop[0] = False
+            sec = WAIT_SECONDS
         cur[0] = name
-        print(f"\n>>> {name} ({sec}s)", flush=True)
+        print(f"\n>>> {name}: recording {sec}s, keep it steady", flush=True)
         end = time.time() + sec
         last = 0
         while time.time() < end:
