@@ -48,7 +48,8 @@ channel ratio). This table is from macOS 27.0.1; the 27.2 repeat is at the end:
 - The red separation is the softest (under red, c4 peaks at 0.34 but c0 is 0.15);
   a phone OLED red is not a narrow line, so treat red as the weakest leg of the
   ordering. Subtracting the cover step sharpens it (red: c4 0.61, c3 0.22; see
-  "Reproduce"), but a finger is not a true dark reference.
+  "Reproduce"), but a finger is not a true dark reference: in the 27.0.1 run
+  lux was still about 158 with the sensor covered.
 
 ## Why the fifth channel matters
 
@@ -58,8 +59,15 @@ several times over (phone OLED screens, no cover subtraction):
 
 | run | c3 share of c0..c3, red / green | c4 share of c0..c4, red / green |
 |---|---|---|
-| 27.0.1 | 0.33 / 0.22 (1.5x) | 0.34 / 0.10 (3.4x) |
-| 27.2   | 0.36 / 0.22 (1.6x) | 0.41 / 0.07 (5.9x) |
+| 27.0.1 | 0.33 / 0.22 (1.5x) | 0.34 / 0.10 (3.3x) |
+| 27.2   | 0.36 / 0.22 (1.6x) | 0.41 / 0.07 (6.0x) |
+
+(Multipliers use unrounded shares.) The c3 share is a simple 4-channel metric,
+not the best one: c3/c2 alone already rises from about 0.5 under green to 1.3
+to 1.4 under red, so four channels can tell red from green. Adding c4 still
+widens the contrast (c4/c2: about 0.15 to 0.26 under green, 2.0 to 2.7 under
+red), and of the five channels c4 has the largest red/green contrast in both
+runs.
 
 So the channel those tools do not read is the one that best separates red from
 green. This is two

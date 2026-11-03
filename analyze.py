@@ -17,6 +17,10 @@ if len(args) != 1:
     print("usage: python3 analyze.py out.csv [--subtract-cover]")
     sys.exit(1)
 subtract = "--subtract-cover" in sys.argv
+unknown = [a for a in sys.argv[1:] if a.startswith("--") and a != "--subtract-cover"]
+if unknown:
+    print("unknown option:", " ".join(unknown))
+    sys.exit(1)
 
 steps = []                                   # [(phase, [row, ...]), ...]
 try:
