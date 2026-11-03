@@ -6,35 +6,10 @@ temperature. This repository reads them with a standard-library Python script,
 shows live what the sensor sees, and measures how the channels respond to
 colored light. The public macOS tools I found (as of 2026-11-03) read at most
 four of the channels; the fifth, c4, separates red from green best in my
-measurements.
+measurements. Much of the layout was public before this (see Prior work); what
+is new here is narrower and listed there.
 
 ![Channel share under each phone-screen color](docs/channels.svg)
-
-**Prior work.** Most of this was public before I started; what is new here is
-narrower:
-
-- On macOS, [olvvier/apple-silicon-accelerometer](https://github.com/olvvier/apple-silicon-accelerometer/blob/d140bda54ff915a97f1015188a0c43247c187079/macimu/__init__.py)
-  has read this same 122-byte HID report since 2026-02-21: lux at byte 40 and
-  "4 spectral channels" at bytes 20..32, unlabeled.
-  [SaintD1smas/TrueTone](https://github.com/SaintD1smas/TrueTone/blob/4bf513544163c230483ace6c40bd88e4760f3993/Sources/TrueTone/AmbientSensor.swift)
-  (2026-08-29) reads the color temperature and four channels through the HID
-  event API.
-- For Linux, the Asahi `aop_als` driver has used the lux offset (0x28) for the
-  VD6286 since 2024-11. [triutama133/ubuntu_asahi_patch](https://github.com/triutama133/ubuntu_asahi_patch/blob/3cb6569aaa56815e86b487111725a4d05406bd00/kernel-patches/README.md)
-  (2026-08-28) described all five channels (0x14..0x24) and the color
-  temperature (0x45), identified the chip as an ST VD6286, and labeled the
-  channels blue, clear, green, red and IR from its own colored-light tests.
-
-I worked these offsets out on macOS without knowing about the Linux write-up;
-its offsets match mine. What this repository adds: c4 on macOS (the macOS tools
-above read four channels), published raw data with per-channel color responses,
-a comparison with the Linux channel labels (two fit these measurements less
-well), the rest of the report's bytes, and a live view.
-
-Measured on one MacBook Pro Mac16,8 (M4 Pro): one run on macOS 27.0.1, two on
-27.2 (26B123). The driver is named `AppleSPUVD6286`; not confirmed from a
-datasheet. I opened a pull request upstream to read c4
-(olvvier/apple-silicon-accelerometer#25).
 
 ## Quick start
 
@@ -48,7 +23,9 @@ python3 analyze.py out.csv             # per-step medians and channel ratios
 The sensor is at the top center of the display, next to the webcam. Put solid
 red, green, blue and white images on your phone (or AirDrop `docs/colors.html`
 to it and tap to switch colors), turn its brightness to maximum and switch off auto-brightness, Night Shift
-and True Tone. Hold the screen flat against the sensor.
+and True Tone. Hold the screen flat against the sensor. If the scripts cannot open the
+sensor, give your terminal Input Monitoring permission (System Settings, Privacy
+and Security) or run them with `sudo`.
 
 `color_live.py` measures room light for 3 s, then redraws five channel bars and
 a guess (RED, GREEN, BLUE, WHITE, COVERED or ROOM) about five times a second.
@@ -86,6 +63,34 @@ step shine the phone's LED at it from about 10 cm.
 
 </details>
 
+## Prior work
+
+Most of this was public before I started; what is new here is
+narrower:
+
+- On macOS, [olvvier/apple-silicon-accelerometer](https://github.com/olvvier/apple-silicon-accelerometer/blob/d140bda54ff915a97f1015188a0c43247c187079/motion_live.py#L672-L694)
+  has read this same 122-byte HID report since 2026-02-21: lux at byte 40 and
+  four unlabeled channels at bytes 20..32, drawn as live bars.
+  [SaintD1smas/TrueTone](https://github.com/SaintD1smas/TrueTone/blob/4bf513544163c230483ace6c40bd88e4760f3993/Sources/TrueTone/AmbientSensor.swift)
+  (public since 2026-09) reads the color temperature and four channels through
+  the HID event API.
+- For Linux, the Asahi [`aop_als`](https://github.com/AsahiLinux/linux/blob/414812147991cf1ced35a7345782ea4eef4e73bb/drivers/iio/common/aop_sensors/aop_als.rs) driver has used the lux offset (0x28,
+  byte 40) for the VD6286 since 2024-11. [triutama133/ubuntu_asahi_patch](https://github.com/triutama133/ubuntu_asahi_patch/blob/3cb6569aaa56815e86b487111725a4d05406bd00/kernel-patches/README.md)
+  (2026-08-28) described all five channels (0x14..0x24, bytes 20..39) and
+  the color temperature (0x45, byte 69), identified the chip as an ST VD6286, and labeled the
+  channels blue, clear, green, red and IR from its own colored-light tests.
+
+The Linux write-up's offsets match mine. What this repository adds: c4 on macOS (the macOS tools
+above read four channels), published raw data with per-channel color responses,
+a comparison with the Linux channel labels (one does not fit these measurements
+and one is only partly supported), the remaining bytes of the report beyond the
+channels, lux and color temperature, and a live color guess.
+
+Measured on one MacBook Pro Mac16,8 (M4 Pro): one run on macOS 27.0.1, two on
+27.2 (26B123). The driver is named `AppleSPUVD6286`; not confirmed from a
+datasheet. I opened a pull request upstream to read c4
+(olvvier/apple-silicon-accelerometer#25).
+
 ## What the als report contains (122-byte report)
 
 ```python
@@ -108,7 +113,7 @@ checked across all 1074 recorded reports (`als_decode.decode_fields`):
 | 40..43 | f32 | lux | confirmed | tracks brightness |
 | 44..62 | | zero | confirmed | always 0 |
 | 63..66 | u32 | constant 19 | unknown | same in all runs |
-| 67 | u8 | mode or gain flag | likely | 0x40; switched once to 0x20 under the phone LED at c3 about 169k, with channels and lux continuous across it |
+| 67 | u8 | mode or gain flag | likely | 0x40; switched to 0x20 under the phone LED at c3 about 169k and stayed there for the rest of that run, with channels and lux continuous across it |
 | 68 | u8 | zero | likely padding | always 0 |
 | 69..72 | f32 | color temperature, K | likely | room about 5000, white screen 6000 to 8100, blue screen 12800 to 14100, phone LED about 4500; meaningless for saturated red or green |
 | 73..80 | u32 x2 | two equal constants | unknown | 97300 on macOS 27.0.1, 197380 on 27.2 |
@@ -129,7 +134,8 @@ the median of the second half of its samples, as a share of c0..c4:
   c0..c4 running in wavelength order. Under green, the neighboring channels c1
   and c3 rise together. The placement of c1 and c3 is inferred from this
   neighbor response only; three phone primaries cannot pin down all five.
-- Across the three runs the peak channel is the same for every color. The blue
+- Across the three runs the peak channel is the same for the blue, green and
+  red screens (white is broad). The blue
   and green rows agree within 0.06 per channel; the red row varies more (c4
   share 0.34 to 0.47), tracking how dark the cover step was.
 - Red was the weakest leg in the first two runs, because the finger did not
@@ -222,10 +228,12 @@ Labels here stay neutral (c0..c4) for that reason.
 
 ## What existing public tools read
 
-Two public tools I checked read this sensor (as of 2026-11-03). The Swift one
-started as a port of the Python one, so this is one design, not two independent
-findings. On the 122-byte layout both read only the first four channels, which
-the Python package documents as "lux + 4 spectral channels":
+The macOS tools I checked (as of 2026-11-03) read at most four channels. Two
+parse the 122-byte report directly; the Swift one started as a port of the
+Python one, so they are one design, not two independent findings. Both read
+only the first four channels, which the Python package's README documents as
+"lux + 4 spectral channels". SaintD1smas/TrueTone (see Prior work) reads four
+channels through the HID event API instead.
 
 - **olvvier/apple-silicon-accelerometer** (Python; the package is named
   `macimu`): [`macimu/__init__.py`](https://github.com/olvvier/apple-silicon-accelerometer/blob/203685640287449eaecf521c24d1f5e52486ecb7/macimu/__init__.py) uses channel offsets `[20, 24, 28, 32]`, i.e.

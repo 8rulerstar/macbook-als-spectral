@@ -67,3 +67,20 @@ for phase, rows in steps:
     peak = f"c{ratio.index(max(ratio))}" if total else "-"
     print(f"{phase[:14]:<14}{n:>4}  " + "".join(f"{c:>7.0f}" for c in ch)
           + f"  {lux:>7.1f}  " + " ".join(f"{x:.2f}" for x in ratio) + f"  {peak}")
+
+# Warn about runs that look like the light never changed: a weak cover, or
+# color steps that look just like the baseline.
+lux_of = {}
+peak_of = {}
+for phase, rows in steps:
+    ch, lux, n = medians(rows)
+    key = phase.lower().split()[0]
+    lux_of.setdefault(key, lux)
+    peak_of.setdefault(key, ch.index(max(ch)))
+if "baseline" in lux_of and "cover" in lux_of and lux_of["cover"] > 0.5 * lux_of["baseline"]:
+    print(f"\nnote: cover lux {lux_of['cover']:.0f} vs baseline {lux_of['baseline']:.0f}; "
+          "the sensor was probably not fully covered.")
+colors = [k for k in ("red", "green", "blue") if k in peak_of]
+if colors and "baseline" in peak_of and all(peak_of[k] == peak_of["baseline"] for k in colors):
+    print("note: the red, green and blue steps peak on the same channel as the baseline; "
+          "were the screens held against the sensor?")

@@ -61,6 +61,8 @@ class ReadmeNumbersTest(unittest.TestCase):
             got = {}
             for line in out.splitlines()[1:]:
                 parts = line.split()
+                if not parts:
+                    continue
                 key = parts[0].lower()
                 if key in table:
                     got[key] = [float(x) for x in parts[-6:-1]]
