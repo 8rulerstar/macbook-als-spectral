@@ -9,11 +9,12 @@ The fifth channel, c4, is the one that separates red from green best.
 ![Red/green contrast of c3 vs c4](docs/red_green.svg)
 
 This repository has a standard-library Python script that reads the raw
-channels, the two color-test runs behind every number here, and the analysis
+channels, the three color-test runs behind every number here, and the analysis
 that reproduces them. I opened a pull request upstream to add the fifth channel
 (olvvier/apple-silicon-accelerometer#25).
 
-Measured on one MacBook Pro Mac16,8 (M4 Pro), on macOS 27.0.1 and 27.2 (26B123).
+Measured on one MacBook Pro Mac16,8 (M4 Pro): one run on macOS 27.0.1, two on
+27.2 (26B123).
 The driver is named `AppleSPUVD6286`, suggesting an ST VD6286; not confirmed
 from a datasheet.
 
@@ -81,14 +82,15 @@ the median of the second half of its samples, as a share of c0..c4:
   c0..c4 running in wavelength order. Under green, the neighboring channels c1
   and c3 rise together. The placement of c1 and c3 is inferred from this
   neighbor response only; three phone primaries cannot pin down all five.
-- The two runs (different days and OS versions) agree within 0.07 per channel
-  on the blue, green and red rows, and the peak channel is the same.
-- Red is the weakest leg. A phone OLED red is not a narrow line, and the red
-  signal is small: c4 was 3424 against 1056 with the sensor covered on 27.0.1
-  (3.2x), and 715 against 339 on 27.2 (2.1x). Subtracting the cover step
-  sharpens it (27.0.1 red: c4 0.61, c3 0.22), but a finger is not a true dark
-  reference: in the 27.0.1 run lux was still about 158 with the sensor covered.
-  A stronger red source would make this leg firmer.
+- Across the three runs the peak channel is the same for every color. The blue
+  and green rows agree within 0.06 per channel; the red row varies more (c4
+  share 0.34 to 0.47), tracking how dark the cover step was.
+- Red was the weakest leg in the first two runs, because the finger did not
+  fully cover the sensor: with it "covered", lux was still about 158 (27.0.1)
+  and 39 (27.2 run 1), and red c4 was only 3.2x and 2.1x the covered level. In
+  27.2 run 2 the sensor was covered properly (lux about 19), each step got a 3 s
+  settle before 10 s of recording, and red c4 was 2434 against 198 covered,
+  12.3x. A phone OLED red is still not a narrow line.
 
 <details>
 <summary>Tables</summary>
@@ -102,7 +104,7 @@ macOS 27.0.1:
 | red   | **c4** | 0.15 | 0.12 | 0.17 | 0.22 | 0.34 |
 | white | broad  | 0.24 | 0.22 | 0.25 | 0.14 | 0.15 |
 
-macOS 27.2 (26B123), all 217 reports 122 bytes:
+macOS 27.2 (26B123) run 1, all 217 reports 122 bytes:
 
 | screen color | peak channel | c0 | c1 | c2 | c3 | c4 |
 |---|---|---|---|---|---|---|
@@ -111,7 +113,16 @@ macOS 27.2 (26B123), all 217 reports 122 bytes:
 | red   | **c4** | 0.13 | 0.10 | 0.15 | 0.21 | 0.41 |
 | white | c0, broad | 0.31 | 0.21 | 0.24 | 0.13 | 0.10 |
 
-With the cover step subtracted, the 27.2 red row becomes c3 86 and c4 376 with
+macOS 27.2 (26B123) run 2, all 403 reports 122 bytes:
+
+| screen color | peak channel | c0 | c1 | c2 | c3 | c4 |
+|---|---|---|---|---|---|---|
+| blue  | **c0** | 0.64 | 0.27 | 0.05 | 0.03 | 0.02 |
+| green | **c2** | 0.10 | 0.21 | 0.43 | 0.20 | 0.06 |
+| red   | **c4** | 0.10 | 0.08 | 0.13 | 0.22 | 0.47 |
+| white | c0, broad | 0.34 | 0.22 | 0.23 | 0.12 | 0.08 |
+
+With the cover step subtracted, the 27.2 run 1 red row becomes c3 86 and c4 376 with
 c0..c2 slightly below the cover level, so the red signal there is only a few
 hundred counts.
 
@@ -126,17 +137,18 @@ several times over (phone OLED screens, no cover subtraction):
 | run | c3 share of c0..c3, red / green | c4 share of c0..c4, red / green |
 |---|---|---|
 | 27.0.1 | 0.33 / 0.22 (1.5x) | 0.34 / 0.10 (3.3x) |
-| 27.2   | 0.36 / 0.22 (1.6x) | 0.41 / 0.07 (6.0x) |
+| 27.2 run 1 | 0.36 / 0.22 (1.6x) | 0.41 / 0.07 (6.0x) |
+| 27.2 run 2 | 0.41 / 0.21 (1.9x) | 0.47 / 0.06 (7.4x) |
 
 (Multipliers use unrounded shares.) The c3 share is a simple 4-channel metric,
 not the best one: c3/c2 alone already rises from about 0.5 under green to 1.3
-to 1.4 under red, so four channels can tell red from green. Adding c4 still
-widens the contrast (c4/c2: about 0.15 to 0.26 under green, 2.0 to 2.7 under
-red), and of the five channels c4 has the largest red/green contrast in both
-runs.
+to 1.7 under red, so four channels can tell red from green. Adding c4 still
+widens the contrast (c4/c2: about 0.14 to 0.26 under green, 2.0 to 3.6 under
+red), and of the five channels c4 has the largest red/green contrast in all
+three runs.
 
 So the channel those tools do not read is the one that best separates red from
-green. This is two runs with phone primaries, not a calibrated spectral
+green. This is three runs with phone primaries, not a calibrated spectral
 measurement.
 
 ## What existing public tools read
@@ -190,14 +202,14 @@ is not shown by the encoding. Five-wide arrays are not unique to VD6286 either
   confirm the VD6286 channel count against a datasheet; the related VD6283 is
   documented as a 6-channel color sensor, so a separate clear or IR channel at
   another offset is not ruled out.
-- Single machine (Mac16,8), one run per OS version, phone OLED as the only
-  colored light source. The 122-byte layout was verified on 27.0.1 and 27.2.
+- Single machine (Mac16,8), three runs (one on 27.0.1, two on 27.2), phone OLED
+  as the only colored light source. The 122-byte layout was verified on 27.0.1 and 27.2.
 
 ## Reproduce
 
 Standard library only (`ctypes` + IOKit), no external dependencies.
 
-Both runs behind the tables and figures are in `data/` (same columns as
+All three runs behind the tables and figures are in `data/` (same columns as
 `als_probe.py` output, raw report hex included):
 
 - `data/macos27.0.1_mac16-8.csv`: eight steps including flashlight. The step
@@ -205,6 +217,9 @@ Both runs behind the tables and figures are in `data/` (same columns as
   changed.
 - `data/macos27.2_mac16-8.csv`: taken with an earlier version of the script,
   seven steps (no flashlight) with labels such as `RED` and `cover sensor`.
+- `data/macos27.2_mac16-8_run2.csv`: current script with `--wait` (3 s settle,
+  10 s per step), sensor properly covered, phone at full brightness held flat
+  against the sensor.
 
 ```
 python3 analyze.py data/macos27.0.1_mac16-8.csv

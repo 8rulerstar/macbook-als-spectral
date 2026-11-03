@@ -11,7 +11,9 @@ import csv, os, statistics
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUNS = [("macOS 27.0.1", "data/macos27.0.1_mac16-8.csv"),
-        ("macOS 27.2", "data/macos27.2_mac16-8.csv")]
+        ("macOS 27.2 run 1", "data/macos27.2_mac16-8.csv"),
+        ("macOS 27.2 run 2", "data/macos27.2_mac16-8_run2.csv")]
+OPACITY = ["1", "0.6", "0.3"]
 COLORS = [("blue", "#2f6fdb"), ("green", "#2e9e4f"), ("red", "#d23b3b")]
 INK, MUTED, GRID, BG = "#1f2328", "#59636e", "#d8dee4", "#ffffff"
 
@@ -44,7 +46,7 @@ def channels_figure(data):
     W, H, top, base, ph = 760, 300, 56, 250, 170
     pw, gap = 220, 30
     body = text(20, 28, "Channel share under each phone-screen color (c0..c4)", 16, weight="bold")
-    body += text(20, 46, "Peak moves c0 to c2 to c4. Solid bar: 27.0.1, light bar: 27.2.", 12, MUTED)
+    body += text(20, 46, "Peak moves c0 to c2 to c4. Bars, dark to light: 27.0.1, 27.2 run 1, 27.2 run 2.", 12, MUTED)
     for p, (name, col) in enumerate(COLORS):
         x0 = 30 + p * (pw + gap)
         for frac in (0, 0.25, 0.5, 0.75):
@@ -55,10 +57,10 @@ def channels_figure(data):
         for i in range(5):
             for j, (_, run) in enumerate(data):
                 v = share(run[name])[i]
-                bw = 16
-                x = x0 + 12 + i * 42 + j * (bw + 2)
+                bw = 11
+                x = x0 + 8 + i * 42 + j * (bw + 2)
                 hgt = v / 0.75 * ph
-                op = "1" if j == 0 else "0.45"
+                op = OPACITY[j]
                 body += (f'<rect x="{x}" y="{base - hgt:.1f}" width="{bw}" height="{hgt:.1f}" '
                          f'fill="{col}" fill-opacity="{op}"/>')
             body += text(x0 + 12 + i * 42 + 17, base + 16, f"c{i}", 11, MUTED, "middle")
@@ -73,7 +75,7 @@ def red_green_figure(data):
         c3 = (r[3] / sum(r[:4])) / (g[3] / sum(g[:4]))
         c4 = (r[4] / sum(r)) / (g[4] / sum(g))
         rows.append((label, c3, c4))
-    W, H, x0, scale = 760, 230, 170, 60
+    W, H, x0, scale = 760, 300, 170, 50
     body = text(20, 28, "How much more a channel responds to red than to green", 16, weight="bold")
     body += text(20, 46, "Share under red divided by share under green. Higher means a sharper red/green split.", 12, MUTED)
     y = 70

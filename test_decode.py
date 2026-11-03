@@ -6,7 +6,8 @@ import csv, os, subprocess, sys, unittest
 from als_decode import decode_report
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RUNS = ["data/macos27.0.1_mac16-8.csv", "data/macos27.2_mac16-8.csv"]
+RUNS = ["data/macos27.0.1_mac16-8.csv", "data/macos27.2_mac16-8.csv",
+        "data/macos27.2_mac16-8_run2.csv"]
 
 # Channel shares from the README tables (step label prefix -> c0..c4).
 README_TABLES = {
@@ -14,6 +15,8 @@ README_TABLES = {
               "red": [0.15, 0.12, 0.17, 0.22, 0.34], "white": [0.24, 0.22, 0.25, 0.14, 0.15]},
     RUNS[1]: {"blue": [0.62, 0.27, 0.05, 0.03, 0.02], "green": [0.08, 0.20, 0.44, 0.21, 0.07],
               "red": [0.13, 0.10, 0.15, 0.21, 0.41], "white": [0.31, 0.21, 0.24, 0.13, 0.10]},
+    RUNS[2]: {"blue": [0.64, 0.27, 0.05, 0.03, 0.02], "green": [0.10, 0.21, 0.43, 0.20, 0.06],
+              "red": [0.10, 0.08, 0.13, 0.22, 0.47], "white": [0.34, 0.22, 0.23, 0.12, 0.08]},
 }
 
 def rows(path):
