@@ -95,8 +95,9 @@ channels, lux and color temperature, and a live color guess.
 
 Measured on one MacBook Pro Mac16,8 (M4 Pro): one run on macOS 27.0.1, two on
 27.2 (26B123). The driver is named `AppleSPUVD6286`; not confirmed from a
-datasheet. I opened a pull request upstream to read c4
-(olvvier/apple-silicon-accelerometer#25).
+datasheet. The M4 generation is not supported by Asahi Linux, so none of this
+was measured under Linux. I opened a pull request upstream to read c4
+([olvvier/apple-silicon-accelerometer#25](https://github.com/olvvier/apple-silicon-accelerometer/pull/25)).
 
 ## What the als report contains (122-byte report)
 
@@ -249,7 +250,7 @@ channels through the HID event API instead.
 
 So on this layout the fifth channel (offset 36) is present in the report but not
 read. I opened a pull request to add it:
-**olvvier/apple-silicon-accelerometer#25** ("read_als: include the 5th spectral
+**[olvvier/apple-silicon-accelerometer#25](https://github.com/olvvier/apple-silicon-accelerometer/pull/25)** ("read_als: include the 5th spectral
 channel at offset 36").
 
 ## Cross-check: the driver struct has five-wide arrays
