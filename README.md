@@ -9,7 +9,11 @@ four of the channels; the fifth, c4, separates red from green best in my
 measurements. Much of the layout was public before this (see Prior work); what
 is new here is narrower and listed there.
 
-![Channel share under each phone-screen color](docs/channels.svg)
+![color_live.py replaying a recorded run](docs/demo.gif)
+
+*`color_live.py`'s display, replayed from the recorded run
+`data/macos27.2_mac16-8_run2.csv` (not a live screen capture).*
+
 
 ## Quick start
 
