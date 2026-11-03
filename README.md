@@ -1,7 +1,7 @@
 # Decoding the MacBook ambient-light sensor, and the spectral channel public tools drop
 
 The Apple Silicon MacBook "ambient light sensor" (`als`) reports more than lux:
-on macOS 27.0.1 its HID report carries a block of spectral channels (chip:
+on macOS 27.0.1 and 27.2 its HID report carries a block of spectral channels (chip:
 STMicroelectronics VD6286). This note decodes that report, shows by a color test
 that the channels are ordered by wavelength, and points out that existing public
 tools read only four of the five channels. I opened a pull request adding the
@@ -9,13 +9,12 @@ missing channel.
 
 Measured on a MacBook Pro Mac16,8 (M4 Pro).
 
-> Note on macOS version: the verified decode below is from **macOS 27.0.1**
-> (122-byte report). On **macOS 27.2** the report changed to 137 bytes and the
-> fields became `float32` at shifted offsets, so the byte offsets here do not
-> apply there. See "macOS 27.2 changed the report" at the end. The decode and
-> the pull request target the 27.0.1 layout.
+> Note on macOS version: the decode below is the 122-byte report. It was
+> color-tested on **macOS 27.0.1** and again on **macOS 27.2** (26B123). A
+> 137-byte report was observed once earlier on 27.2 and is not decoded. See
+> "macOS 27.2" at the end.
 
-## What the als report contains (macOS 27.0.1, 122-byte report)
+## What the als report contains (122-byte report)
 
 - bytes **20..39**: five little-endian `uint32` spectral channels (c0..c4).
 - bytes **40..43**: `float32` lux.
@@ -33,7 +32,7 @@ lux      = struct.unpack_from("<f",  report, 40)[0]
 
 I lit the sensor with solid colors from a phone screen and measured each
 channel's response (median of the second half of each step, normalized to a
-channel ratio):
+channel ratio). This table is from macOS 27.0.1; the 27.2 repeat is at the end:
 
 | screen color | peak channel | c0 | c1 | c2 | c3 | c4 |
 |---|---|---|---|---|---|---|
@@ -79,8 +78,7 @@ read. I opened a pull request to add it:
 channel at offset 36").
 
 Note this is a layout-specific point: it holds for the 122-byte report
-(27.0.1). On 27.2 the format changed (below), so the specific offset-36 claim is
-tied to 27.0.1.
+(seen on 27.0.1 and 27.2). It does not apply to the 137-byte report noted below.
 
 ## Quick start
 
@@ -97,18 +95,28 @@ python3 als_probe.py out.csv
 - Permissions: opening the HID device may require Input Monitoring for your
   terminal (System Settings, Privacy and Security, Input Monitoring), or `sudo`.
   If it cannot open, the script stops with an assertion.
-- The script decodes channels only for the 122-byte report. On a 137-byte report
-  (27.2) it prints a warning and logs raw hex only.
+- The script decodes channels only for the 122-byte report. On any other length
+  it prints a warning and logs raw hex only.
 
-## macOS 27.2 changed the report
+## macOS 27.2
 
-On macOS 27.2 (26B123) the `als` report is 137 bytes, not 122, and the numeric
-fields are `float32` rather than `uint32`. Reading the 122-byte offsets there
-yields garbage. From a structural scan of the 137-byte report, five consecutive
-`float32` values appear near bytes 28..47, with other float fields around bytes
-20 and 52 (one near 5100, plausibly a color temperature). I have not re-run the
-color test on 27.2, so which float is which channel is not verified. Treat the
-27.2 layout as provisional and the 27.0.1 decode above as the verified one.
+On macOS 27.2 (26B123) I repeated the color test. All 217 reports were 122
+bytes, and the same decode (uint32 c0..c4 at bytes 20..39, float lux at 40)
+gives the same wavelength order:
+
+| screen color | peak channel | c0 | c1 | c2 | c3 | c4 |
+|---|---|---|---|---|---|---|
+| blue  | **c0** | 0.62 | 0.27 | 0.05 | 0.03 | 0.02 |
+| green | **c2** | 0.08 | 0.20 | 0.44 | 0.21 | 0.07 |
+| red   | **c4** | 0.13 | 0.10 | 0.15 | 0.21 | 0.41 |
+| white | flat   | 0.31 | 0.21 | 0.24 | 0.13 | 0.10 |
+
+Red is again the weakest leg: under red the raw counts were small (c4 about 715,
+lux about 50) versus green (c2 about 11850, lux about 830).
+
+Earlier on the same OS version I captured a 137-byte report whose fields looked
+like `float32` at shifted offsets. It did not appear in this run, and I have not
+established when it occurs or what its layout is. The script does not decode it.
 
 ## Honest limits
 
@@ -119,8 +127,8 @@ color test on 27.2, so which float is which channel is not verified. Treat the
   confirm the VD6286 channel count against a datasheet; the related VD6283 is
   documented as a 6-channel color sensor, so a separate clear or IR channel at
   another offset is not ruled out.
-- Single machine (Mac16,8), and the layout is OS-version specific (122-byte on
-  27.0.1, 137-byte on 27.2).
+- Single machine (Mac16,8). The 122-byte layout was verified on 27.0.1 and 27.2;
+  the 137-byte report seen once on 27.2 is not understood.
 
 ## Reproduce
 

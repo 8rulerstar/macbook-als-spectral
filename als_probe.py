@@ -11,13 +11,11 @@
 # be opened the script stops at the assert below.
 #
 # Report layout is macOS-version specific:
-#   macOS 27.0.1, 122-byte report: 5 uint32 spectral channels at bytes 20..39,
-#     float lux at bytes 40..43. This is the layout decoded and color-tested in
-#     the README.
-#   macOS 27.2, 137-byte report: the fields became float32 and the offsets moved
-#     (channels appear near bytes 28..47, not yet color-verified). On a 137-byte
-#     report this script does NOT decode channels; it prints a warning and logs
-#     the raw hex so you can investigate. See the README note on 27.2.
+#   122-byte report: 5 uint32 spectral channels at bytes 20..39, float lux at
+#     bytes 40..43. Color-tested on macOS 27.0.1 and on macOS 27.2 (26B123).
+#   137-byte report: observed once earlier on 27.2, layout not established. On
+#     any length other than 122 this script does NOT decode channels; it prints
+#     a warning and logs the raw hex. See the README note on 27.2.
 
 import ctypes, ctypes.util, struct, time, sys, csv
 
@@ -68,15 +66,15 @@ warned = [False]
 
 def decode(b):
     n = len(b)
-    if n == 122:                              # macOS 27.0.1, verified
+    if n == 122:                              # verified on 27.0.1 and 27.2
         ch = list(struct.unpack_from("<5I", b, 20))
         lux = struct.unpack_from("<f", b, 40)[0]
         return ch, lux
-    # Other lengths (e.g. 137-byte on macOS 27.2): layout differs. Do not guess.
+    # Other lengths (e.g. the 137-byte report seen once on 27.2): do not guess.
     if not warned[0]:
         warned[0] = True
         print(f"\n  WARNING: report is {n} bytes, not the 122-byte layout this "
-              f"script decodes (macOS 27.0.1).")
+              f"script decodes.")
         print("  Channels are NOT decoded for this length. Logging raw hex only. "
               "See the README note on macOS 27.2.")
     return [None] * 5, None
