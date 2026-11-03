@@ -29,7 +29,7 @@ lux      = struct.unpack_from("<f",  report, 40)[0]
 `MaxInputReportSize` for the `als` node is 122 (from `ioreg`), matching the
 122-byte report.
 
-## The channels are ordered by wavelength (color test)
+## Channel response follows wavelength order (color test)
 
 I lit the sensor with solid colors from a phone screen and measured each
 channel's response (median of the second half of each step, normalized to a
@@ -42,14 +42,15 @@ channel ratio). This table is from macOS 27.0.1; the 27.2 repeat is at the end:
 | red   | **c4** | 0.15 | 0.13 | 0.17 | 0.22 | 0.34 |
 | white | broad  | 0.24 | 0.22 | 0.25 | 0.14 | 0.15 |
 
-- The peak channel moves c0 (blue) to c2 (green) to c4 (red), i.e. the channels
-  run in wavelength order. Under green, the neighboring channels c1 and c3 rise
-  together, consistent with that ordering.
+- The peak channel moves c0 (blue) to c2 (green) to c4 (red), consistent with
+  c0..c4 running in wavelength order. Under green, the neighboring channels c1
+  and c3 rise together. The placement of c1 and c3 is inferred from this
+  neighbor response only; three phone primaries cannot pin down all five.
 - The red separation is the softest (under red, c4 peaks at 0.34 but c0 is 0.15);
   a phone OLED red is not a narrow line, so treat red as the weakest leg of the
   ordering.
 
-## The channel block really is five wide (driver struct)
+## Cross-check: the driver struct has five-wide arrays
 
 Because "five channels" is my reading of the bytes, I cross-checked it against
 Apple's driver symbols. The `com.apple.driver.AppleALSColorSensor` kext carries
@@ -66,17 +67,20 @@ I did not establish which of those arrays the bytes 20..39 correspond to, only
 that a five-channel block is what the driver describes and what I measured.
 The same encoding also lists other vendor variants (for example a
 `vendormorayfamily_s` with `[5f]` float arrays); which one a given machine uses
-is not shown by the encoding.
+is not shown by the encoding. Five-wide arrays are not unique to VD6286 either
+(`vendorct725_s` has `[5i][5s]`), so this is a weak cross-check.
 
 ## What existing public tools read
 
-Two public tools I checked read this sensor. On the 122-byte layout both read
-only the first four channels:
+Two public tools I checked read this sensor (as of 2026-11-03). The Swift one
+started as a port of the Python one, so this is one design, not two independent
+findings. On the 122-byte layout both read only the first four channels, which
+the Python package documents as "lux + 4 spectral channels":
 
 - **olvvier/apple-silicon-accelerometer** (Python; the package is named
-  `macimu`): `macimu/__init__.py` uses channel offsets `[20, 24, 28, 32]`, i.e.
+  `macimu`): [`macimu/__init__.py`](https://github.com/olvvier/apple-silicon-accelerometer/blob/203685640287449eaecf521c24d1f5e52486ecb7/macimu/__init__.py) uses channel offsets `[20, 24, 28, 32]`, i.e.
   four channels, not offset 36.
-- **junwatu/macimu** (Swift): reads offsets 20/24/28/32, the same four.
+- **junwatu/macimu** (Swift): [`IMU.swift`](https://github.com/junwatu/macimu/blob/b8b4ebbaae54279bd3f3a5d9aef5b852f048cd4a/Sources/MacIMU/IMU.swift) reads offsets 20/24/28/32, the same four.
 
 So on this layout the fifth channel (offset 36) is present in the report but not
 read. I opened a pull request to add it:
@@ -103,13 +107,18 @@ python3 analyze.py out.csv             # per-step medians and channel ratios
 - Permissions: opening the HID device may require Input Monitoring for your
   terminal (System Settings, Privacy and Security, Input Monitoring), or `sudo`.
   If it cannot open, the script prints an error and exits.
-- Without `--wait`, steps advance on a timer with no pause between them. Ctrl-C
-  saves the rows collected so far.
+- Without `--wait`, all eight steps run back to back on a timer (about 45 s,
+  5 to 6 s each), so have the screens ready. With `--wait`, reports that arrive
+  while waiting for Enter are dropped. In both modes Ctrl-C saves the rows
+  collected so far.
 - On a model other than Mac16,8 the script prints a note that the decode is
   unverified there, then decodes anyway. Check the values look sensible.
 - `analyze.py` prints, for each step, the median of the second half of its
   samples and each channel's share of c0..c4 (the method behind the tables
-  here). `--subtract-cover` subtracts the cover step from the channels first.
+  here). `--subtract-cover` subtracts the cover step from the channels first and
+  prints the signed differences; the ratio uses the positive part only and lux
+  is not subtracted. A finger over the sensor is not a true dark reference (it
+  passes some red), so read that mode with care.
 - The script decodes channels only for the 122-byte report. On any other length
   it prints a warning and logs raw hex only.
 
@@ -124,7 +133,7 @@ gives the same wavelength order:
 | blue  | **c0** | 0.62 | 0.27 | 0.05 | 0.03 | 0.02 |
 | green | **c2** | 0.08 | 0.20 | 0.44 | 0.21 | 0.07 |
 | red   | **c4** | 0.13 | 0.10 | 0.15 | 0.21 | 0.41 |
-| white | broad  | 0.31 | 0.21 | 0.24 | 0.13 | 0.10 |
+| white | c0, broad | 0.31 | 0.21 | 0.24 | 0.13 | 0.10 |
 
 Red is again the weakest leg: under red the raw counts were small (c4 about 715,
 lux about 50) versus green (c2 about 11850, lux about 830).
@@ -151,7 +160,8 @@ Standard library only (`ctypes` + IOKit), no external dependencies.
 
 The macOS 27.2 run behind the table above is in
 `data/macos27.2_mac16-8.csv` (same columns as `als_probe.py` output, raw report
-hex included). Its step labels differ from the current script's. To recompute
+hex included). It was taken with an earlier version of the script: seven steps
+(no flashlight) with labels such as `RED` and `cover sensor`. To recompute
 the table:
 
 ```

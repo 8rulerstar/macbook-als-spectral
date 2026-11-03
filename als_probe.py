@@ -27,6 +27,10 @@ if len(args) != 1:
     print("usage: python3 als_probe.py out.csv [--wait]")
     sys.exit(1)
 out = args[0]
+unknown = [a for a in sys.argv[1:] if a.startswith("--") and a != "--wait"]
+if unknown:
+    print("unknown option:", " ".join(unknown))
+    sys.exit(1)
 wait = "--wait" in sys.argv
 
 # The decode was verified on one machine. Other models may share the 122-byte
@@ -98,7 +102,10 @@ def decode(b):
 
 CB = ctypes.CFUNCTYPE(None, V, ctypes.c_int, V, ctypes.c_int, ctypes.c_uint,
                       ctypes.POINTER(ctypes.c_uint8), ctypes.c_long)
+drop = [False]
 def cb(ctx, res, snd, typ, rid, rep, ln, *a):
+    if drop[0]:
+        return
     b = bytes(rep[:ln])
     ch, lux = decode(b)
     rows.append([round(time.time() - t0[0], 2), cur[0],
@@ -147,6 +154,11 @@ try:
             signal.signal(signal.SIGINT, signal.default_int_handler)
             input(f"\nnext: {name}. Get ready, then press Enter ")
             signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
+            # Reports queued while waiting describe the previous light. Drop them
+            # so they are not logged under this step's label.
+            drop[0] = True
+            cf.CFRunLoopRunInMode(mode, 0.3, False)
+            drop[0] = False
         cur[0] = name
         print(f"\n>>> {name} ({sec}s)", flush=True)
         end = time.time() + sec
@@ -159,7 +171,7 @@ try:
                 last = time.time()
                 r = rows[-1]
                 print("   ch", r[2:7], "lux", r[7], flush=True)
-except KeyboardInterrupt:
+except (KeyboardInterrupt, EOFError):
     save()
     print("\ninterrupted. saved partial data:", out)
     sys.exit(130)

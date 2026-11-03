@@ -19,7 +19,12 @@ if len(args) != 1:
 subtract = "--subtract-cover" in sys.argv
 
 steps = []                                   # [(phase, [row, ...]), ...]
-with open(args[0], newline="") as f:
+try:
+    f = open(args[0], newline="")
+except OSError as e:
+    print(f"cannot read {args[0]}: {e.strerror}")
+    sys.exit(1)
+with f:
     for r in csv.DictReader(f):
         if r["c0"] == "":                    # undecoded report length
             continue
@@ -27,7 +32,7 @@ with open(args[0], newline="") as f:
             steps.append((r["phase"], []))
         steps[-1][1].append(r)
 if not steps:
-    print("no decoded rows (only 122-byte reports are decoded)")
+    print("no decoded rows (empty file, or no 122-byte reports)")
     sys.exit(1)
 
 def medians(rows):
@@ -43,15 +48,18 @@ if subtract:
         print("no cover step to subtract")
         sys.exit(1)
     cover = medians(cov[0])[0]
+    print("channels: step minus cover, signed. ratio: share of the positive part "
+          "only. lux: not subtracted.")
 
 print(f"{'step':<14}{'n':>4}  {'c0':>7}{'c1':>7}{'c2':>7}{'c3':>7}{'c4':>7}  {'lux':>7}  "
       f"ratio c0..c4         peak")
 for phase, rows in steps:
     ch, lux, n = medians(rows)
     if cover:
-        ch = [max(c - b, 0.0) for c, b in zip(ch, cover)]
-    total = sum(ch)
-    ratio = [c / total if total else 0.0 for c in ch]
+        ch = [c - b for c, b in zip(ch, cover)]
+    pos = [max(c, 0.0) for c in ch]
+    total = sum(pos)
+    ratio = [c / total if total else 0.0 for c in pos]
     peak = f"c{ratio.index(max(ratio))}" if total else "-"
     print(f"{phase[:14]:<14}{n:>4}  " + "".join(f"{c:>7.0f}" for c in ch)
           + f"  {lux:>7.1f}  " + " ".join(f"{x:.2f}" for x in ratio) + f"  {peak}")
