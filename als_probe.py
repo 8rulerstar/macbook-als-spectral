@@ -8,7 +8,7 @@
 # Requires Python 3.8+ on an Apple Silicon MacBook. Opening the HID device may
 # need Input Monitoring permission for your terminal (System Settings, Privacy
 # and Security, Input Monitoring), or running under sudo. If the device cannot
-# be opened the script stops at the assert below.
+# be opened the script prints an error and exits.
 #
 # Report layout is macOS-version specific:
 #   122-byte report: 5 uint32 spectral channels at bytes 20..39, float lux at
@@ -17,7 +17,7 @@
 #     any length other than 122 this script does NOT decode channels; it prints
 #     a warning and logs the raw hex. See the README note on 27.2.
 
-import ctypes, ctypes.util, struct, time, sys, csv
+import ctypes, ctypes.util, struct, time, sys, csv, signal
 
 if len(sys.argv) < 2:
     print("usage: python3 als_probe.py out.csv")
@@ -100,7 +100,9 @@ while (s := iokit.IOIteratorNext(it)):
         cf.CFStringGetCString(p, bb, 64, 0x08000100)
     if bb.value == b"als":
         d = iokit.IOHIDDeviceCreate(None, s)
-        assert iokit.IOHIDDeviceOpen(d, 0) == 0, "IOHIDDeviceOpen failed (grant Input Monitoring or run with sudo)"
+        if iokit.IOHIDDeviceOpen(d, 0) != 0:
+            print("IOHIDDeviceOpen failed (grant Input Monitoring or run with sudo)")
+            sys.exit(1)
         iokit.IOHIDDeviceRegisterInputReportCallback(d, buf, 256, ctypes.cast(c, V), None)
         iokit.IOHIDDeviceScheduleWithRunLoop(d, cf.CFRunLoopGetCurrent(), mode)
         found = True
@@ -109,21 +111,37 @@ if not found:
     print("als device not found under AppleSPUHIDDevice. Nothing to read.")
     sys.exit(1)
 
-t0[0] = time.time()
-for name, sec in PHASES:
-    cur[0] = name
-    print(f"\n>>> {name} ({sec}s)", flush=True)
-    end = time.time() + sec
-    last = 0
-    while time.time() < end:
-        cf.CFRunLoopRunInMode(mode, 0.1, False)
-        if rows and time.time() - last > 1:
-            last = time.time()
-            r = rows[-1]
-            print("   ch", r[2:7], "lux", r[7], flush=True)
+def save():
+    with open(out, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["t", "phase", "c0", "c1", "c2", "c3", "c4", "lux", "hex"])
+        w.writerows(rows)
 
-with open(out, "w", newline="") as f:
-    w = csv.writer(f)
-    w.writerow(["t", "phase", "c0", "c1", "c2", "c3", "c4", "lux", "hex"])
-    w.writerows(rows)
+# Ctrl-C can land inside the ctypes callback, where the exception is swallowed.
+# Set a flag instead and stop from the main loop.
+stop = [False]
+signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
+
+t0[0] = time.time()
+try:
+    for name, sec in PHASES:
+        cur[0] = name
+        print(f"\n>>> {name} ({sec}s)", flush=True)
+        end = time.time() + sec
+        last = 0
+        while time.time() < end:
+            if stop[0]:
+                raise KeyboardInterrupt
+            cf.CFRunLoopRunInMode(mode, 0.1, False)
+            if rows and time.time() - last > 1:
+                last = time.time()
+                r = rows[-1]
+                print("   ch", r[2:7], "lux", r[7], flush=True)
+except KeyboardInterrupt:
+    save()
+    print("\ninterrupted. saved partial data:", out)
+    sys.exit(130)
+save()
+if not rows:
+    print("\nWARNING: no reports were received. The CSV has only a header.")
 print("\ndone. saved:", out)
