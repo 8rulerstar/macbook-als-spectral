@@ -18,7 +18,10 @@
 # On any other length this script does NOT decode channels; it prints a warning
 # and logs the raw hex.
 
-import ctypes, ctypes.util, struct, time, sys, csv, signal, subprocess
+import ctypes, ctypes.util, time, sys, os, csv, signal, subprocess
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from als_decode import decode_report
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 if len(args) != 1:
@@ -85,10 +88,9 @@ warned = [False]
 
 def decode(b):
     n = len(b)
-    if n == 122:                              # verified on 27.0.1 and 27.2
-        ch = list(struct.unpack_from("<5I", b, 20))
-        lux = struct.unpack_from("<f", b, 40)[0]
-        return ch, lux
+    r = decode_report(b)                      # verified on 27.0.1 and 27.2
+    if r:
+        return r
     # Other lengths: layout unknown. Do not guess.
     if not warned[0]:
         warned[0] = True
