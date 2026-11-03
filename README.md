@@ -1,36 +1,52 @@
-# The MacBook light sensor has five color channels. Two public tools read four.
+# Reading the five raw channels of the MacBook light sensor on macOS
 
 The Apple Silicon MacBook ambient light sensor (`als`) reports more than lux. Its
-HID report carries five color channels, c0..c4, which a color test shows
-peaking from blue (c0) through green (c2) to red (c4). Two
-public tools that read this sensor (as of 2026-11-03) read only the first four.
-The fifth channel, c4, is the one that separates red from green best.
+HID report on macOS carries five channels, c0..c4, plus lux and a color
+temperature. This repository reads them with a standard-library Python script,
+shows live what the sensor sees, and measures how the channels respond to
+colored light. Two public macOS tools that read this sensor (as of 2026-11-03)
+read only the first four channels; the fifth, c4, separates red from green best
+in my measurements.
 
-![Red/green contrast of c3 vs c4](docs/red_green.svg)
+![Channel share under each phone-screen color](docs/channels.svg)
 
-This repository has a standard-library Python script that reads the raw
-channels, the three color-test runs behind every number here, and the analysis
-that reproduces them. I opened a pull request upstream to add the fifth channel
-(olvvier/apple-silicon-accelerometer#25).
+**Prior work.** The same five-channel layout (offsets 0x14..0x24, lux at 0x28,
+color temperature at 0x45) was already described for Linux in an Asahi
+enhancement project, [triutama133/ubuntu_asahi_patch](https://github.com/triutama133/ubuntu_asahi_patch/blob/3cb6569aaa56815e86b487111725a4d05406bd00/kernel-patches/README.md)
+(first published 2026-08-28), which labels the channels blue, clear, green,
+red and IR. I found it after doing this work. What this repository adds: the
+macOS HID path, measured color responses with the raw data, the observation
+that macOS tools drop c4, and a different reading of two labels (below).
 
 Measured on one MacBook Pro Mac16,8 (M4 Pro): one run on macOS 27.0.1, two on
-27.2 (26B123).
-The driver is named `AppleSPUVD6286`, suggesting an ST VD6286; not confirmed
-from a datasheet.
+27.2 (26B123). The driver is named `AppleSPUVD6286`, suggesting an ST VD6286;
+not confirmed from a datasheet. I opened a pull request upstream to read c4
+(olvvier/apple-silicon-accelerometer#25).
 
 ## Quick start
 
 ```
 # Python 3.8+, Apple Silicon MacBook
-python3 als_probe.py out.csv --wait    # press Enter before each step
+python3 color_live.py                  # live channel bars and a color guess
+python3 als_probe.py out.csv --wait    # step-by-step color test, saved to CSV
 python3 analyze.py out.csv             # per-step medians and channel ratios
 ```
 
-Before you start, put solid red, green, blue and white images on your phone and
-turn its brightness up. The script runs eight steps (baseline, cover, red,
-green, blue, white, flashlight, baseline). At each color step hold that screen
-against the sensor, next to the webcam. At the cover step cover the sensor with
-a finger; at the flashlight step shine the phone's LED at it.
+The sensor is at the top center of the display, next to the webcam. Put solid
+red, green, blue and white images on your phone (or AirDrop `docs/colors.html`
+to it and tap to switch colors), turn its brightness to maximum and switch off auto-brightness, Night Shift
+and True Tone. Hold the screen flat against the sensor.
+
+`color_live.py` measures room light for 3 s, then redraws five channel bars and
+a guess (RED, GREEN, BLUE, WHITE, COVERED or ROOM) about five times a second.
+The guess uses channel-ratio thresholds with wide margins chosen on the three
+runs here (phone OLED screens, one machine); it is a rule of thumb, not a
+calibrated color measurement.
+
+`als_probe.py` runs eight steps (baseline, cover, red, green, blue, white,
+flashlight, baseline). At each color step hold that screen against the sensor.
+At the cover step cover the sensor fully with a fingertip; at the flashlight
+step shine the phone's LED at it from about 10 cm.
 
 <details>
 <summary>More on the scripts</summary>
@@ -38,16 +54,16 @@ a finger; at the flashlight step shine the phone's LED at it.
 - Without `--wait`, all eight steps run back to back on a timer (about 45 s,
   5 to 6 s each), so have the screens ready. With `--wait`, each step waits for
   Enter, then counts down 3 s (reports in that window and while waiting are
-  dropped, so moving the phone into place is not recorded), then records 10 s. In both modes Ctrl-C saves the rows
-  collected so far.
+  dropped, so moving the phone into place is not recorded), then records 10 s.
+  In both modes Ctrl-C saves the rows collected so far.
 - Output `out.csv` columns: `t, phase, c0..c4, lux, hex`.
 - Permissions: opening the HID device may require Input Monitoring for your
   terminal (System Settings, Privacy and Security, Input Monitoring), or `sudo`.
   If it cannot open, the script prints an error and exits.
-- On a model other than Mac16,8 the script prints a note that the decode is
-  unverified there, then decodes anyway. Check the values look sensible.
-- The script decodes channels only for the 122-byte report. On any other length
-  it prints a warning and logs raw hex only.
+- On a model other than Mac16,8 the scripts print a note that the decode is
+  unverified there, then decode anyway. Check the values look sensible.
+- Channels are decoded only for the 122-byte report. On any other length
+  `als_probe.py` prints a warning and logs raw hex only.
 - `analyze.py` prints, for each step, the median of the second half of its
   samples and each channel's share of c0..c4 (the method behind the tables
   here). `--subtract-cover` subtracts the cover step from the channels first and
@@ -59,17 +75,35 @@ a finger; at the flashlight step shine the phone's LED at it.
 
 ## What the als report contains (122-byte report)
 
-- bytes **20..39**: five little-endian `uint32` color channels (c0..c4).
-- bytes **40..43**: `float32` lux.
-
 ```python
 import struct
 channels = struct.unpack_from("<5I", report, 20)   # c0..c4
 lux      = struct.unpack_from("<f",  report, 40)[0]
+cct      = struct.unpack_from("<f",  report, 69)[0]   # likely color temperature, K
 ```
 
-`MaxInputReportSize` for the `als` node is 122 (from `ioreg`), matching the
-122-byte report. The same layout was seen on macOS 27.0.1 and 27.2.
+`MaxInputReportSize` for the `als` node is 122 (from `ioreg`). Every byte,
+checked across all 1074 recorded reports (`als_decode.decode_fields`):
+
+| Offset | Type | Meaning | Confidence | Evidence |
+|---|---|---|---|---|
+| 0 | u8 | report ID, 0xEC | confirmed | constant |
+| 1..4 | u32 | sequence counter | confirmed | +1 per report (a few gaps when the run loop was paused) |
+| 5..12 | u64 | timestamp in microseconds, likely since boot | confirmed | rises 0.99996 to 1.00008 x 10^6 per second of host time |
+| 13..19 | | zero | confirmed | always 0 |
+| 20..39 | u32 x5 | channels c0..c4 | confirmed | color tests below |
+| 40..43 | f32 | lux | confirmed | tracks brightness |
+| 44..62 | | zero | confirmed | always 0 |
+| 63..66 | u32 | constant 19 | unknown | same in all runs |
+| 67 | u8 | mode or gain flag | likely | 0x40; switched once to 0x20 under the phone LED at c3 about 169k, with channels and lux continuous across it |
+| 68 | u8 | zero | likely padding | always 0 |
+| 69..72 | f32 | color temperature, K | likely | room about 5000, white screen 6000 to 8100, blue screen 12800 to 14100, phone LED about 4500; meaningless for saturated red or green |
+| 73..80 | u32 x2 | two equal constants | unknown | 97300 on macOS 27.0.1, 197380 on 27.2 |
+| 81..121 | | zero | confirmed | always 0 |
+
+The same color temperature offset (0x45) appears in the prior work above. The
+driver's type encoding does not map onto this byte layout directly (see the
+cross-check below), so the HID report looks like its own packed format.
 
 ## Channel response follows wavelength order (color test)
 
@@ -130,6 +164,8 @@ hundred counts.
 
 ## Why the fifth channel matters
 
+![Red/green contrast of c3 vs c4](docs/red_green.svg)
+
 With only c0..c3, the most red-sensitive channel is c3. Its share under a red
 screen is not far from its share under a green one. Adding c4 widens that gap
 several times over (phone OLED screens, no cover subtraction):
@@ -150,6 +186,23 @@ three runs.
 So the channel those tools do not read is the one that best separates red from
 green. This is three runs with phone primaries, not a calibrated spectral
 measurement.
+
+## Channel labels: where this disagrees with the prior work
+
+The prior work labels c0..c4 blue, clear, green, red and IR. Two of those do not
+fit these measurements (27.2 run 2 shares):
+
+- **c1 as "clear" (broadband)**: a clear photodiode should respond to every
+  color. Under a red screen c1 has the smallest share of all five (0.08), and it
+  peaks under blue (0.27) next to c0. It behaves like a blue-green channel.
+- **c4 as "IR" and c3 as "red"**: under a red screen c4, not c3, has the largest
+  share (0.47 against 0.22), and c4 also stands out with a finger over the
+  sensor (0.29), which passes red and near-infrared. A phone OLED red emits
+  little infrared, so c4 is at least strongly red-sensitive. These tests cannot
+  tell whether it also reaches into the infrared. An IR source such as a TV
+  remote would settle it.
+
+Labels here stay neutral (c0..c4) for that reason.
 
 ## What existing public tools read
 
@@ -197,11 +250,15 @@ is not shown by the encoding. Five-wide arrays are not unique to VD6286 either
 
 - No absolute calibration of lux or the channels (relative ratios only).
 - Channel center wavelengths are not confirmed against a datasheet; only the
-  ordering is established by measurement, and the red leg is the weakest.
+  blue to green to red peak order is established by measurement. Whether c4 also
+  covers near-infrared (as the prior work labels it) is not tested.
 - "Five channels" is what this report and the driver struct expose. I did not
   confirm the VD6286 channel count against a datasheet; the related VD6283 is
-  documented as a 6-channel color sensor, so a separate clear or IR channel at
-  another offset is not ruled out.
+  documented as a 6-channel color sensor, so another channel elsewhere is not
+  ruled out.
+- The recorded hex includes the sensor timestamp, which reveals the machine's
+  uptime at the time of each run (about 14 and 5 days). Nothing else in it looks
+  machine-specific, but that was not compared against another Mac.
 - Single machine (Mac16,8), three runs (one on 27.0.1, two on 27.2), phone OLED
   as the only colored light source. The 122-byte layout was verified on 27.0.1 and 27.2.
 
@@ -228,8 +285,10 @@ python3 make_figures.py                  # redraws docs/*.svg
 python3 -m unittest -v test_decode       # checks decode and the README numbers
 ```
 
-Results from other Mac models are welcome as issues: include the model
-(`sysctl -n hw.model`), the macOS version, and the `analyze.py` output.
+Results from other Mac models are welcome as issues (there is a template): include
+the model (`sysctl -n hw.model`), the macOS version, and the `analyze.py` output.
+An IR test (a TV remote held at the sensor while `color_live.py` runs) would
+settle the c4 question.
 
 ## License
 

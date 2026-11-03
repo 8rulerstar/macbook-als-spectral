@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solid colors for the als test</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff;
+    font: 16px -apple-system, Helvetica, Arial, sans-serif; }
+  #screen { position: fixed; inset: 0; }
+  #hint { position: fixed; bottom: 16px; left: 16px; right: 16px; text-align: center;
+    background: rgba(0,0,0,.55); padding: 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div id="screen"></div>
+<div id="hint">Tap to switch: red, green, blue, white. Brightness to max.</div>
+<script>
+  var colors = ["#ff0000", "#00ff00", "#0000ff", "#ffffff"], i = -1;
+  var screen = document.getElementById("screen"), hint = document.getElementById("hint");
+  function next() {
+    i = (i + 1) % colors.length;
+    screen.style.background = colors[i];
+    hint.style.display = "none";
+  }
+  document.addEventListener("click", next);
+</script>
+</body>
+</html>

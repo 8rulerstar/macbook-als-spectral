@@ -31,6 +31,21 @@ class DecodeTest(unittest.TestCase):
                 self.assertEqual(ch, [int(r[f"c{i}"]) for i in range(5)], path)
                 self.assertAlmostEqual(lux, float(r["lux"]), delta=0.06)
 
+    def test_other_fields(self):
+        from als_decode import decode_fields
+        for path in RUNS:
+            prev = None
+            for r in rows(path):
+                f = decode_fields(bytes.fromhex(r["hex"]))
+                self.assertEqual(f["report_id"], 0xEC)
+                self.assertEqual(f["const19"], 19)
+                self.assertEqual(f["config"][0], f["config"][1])
+                self.assertGreater(f["cct"], 1000)
+                if prev:
+                    self.assertGreater(f["seq"], prev["seq"])
+                    self.assertGreater(f["timestamp_us"], prev["timestamp_us"])
+                prev = f
+
     def test_other_lengths_are_not_decoded(self):
         report = bytes.fromhex(rows(RUNS[0])[0]["hex"])
         self.assertIsNone(decode_report(report[:121]))
@@ -50,6 +65,28 @@ class ReadmeNumbersTest(unittest.TestCase):
                 if key in table:
                     got[key] = [float(x) for x in parts[-6:-1]]
             self.assertEqual(got, table, path)
+
+class ColorGuessTest(unittest.TestCase):
+    # The thresholds in color_live.py were chosen on these same runs, so this
+    # guards against regressions; it is not an independent accuracy test.
+    EXPECT = {"baseline": "ROOM", "cover": "COVERED", "red": "RED", "green": "GREEN",
+              "blue": "BLUE", "white": "WHITE", "flashlight": "WHITE"}
+
+    def test_each_step_is_mostly_guessed_right(self):
+        import statistics
+        from color_live import guess
+        for path in RUNS:
+            steps = []
+            for r in rows(path):
+                key = r["phase"].lower().split()[0]
+                if not steps or steps[-1][0] != key:
+                    steps.append((key, []))
+                steps[-1][1].append([float(r[f"c{i}"]) for i in range(5)])
+            room = statistics.median(sum(x) for x in steps[0][1])
+            for key, samples in steps:
+                half = samples[len(samples) // 2:]
+                right = sum(guess(x, room) == self.EXPECT[key] for x in half)
+                self.assertGreaterEqual(right / len(half), 0.7, f"{path} {key}")
 
 if __name__ == "__main__":
     unittest.main()
