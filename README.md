@@ -12,7 +12,8 @@ is new here is narrower and listed there.
 ![color_live.py replaying a recorded run](docs/demo.gif)
 
 *`color_live.py`'s display, replayed from the recorded run
-`data/macos27.2_mac16-8_run2.csv` (not a live screen capture).*
+`data/macos27.2_mac16-8_run2.csv` (not a live screen capture; drawn by
+`tools/make_demo_gif.py`, which needs Pillow).*
 
 
 ## Quick start
@@ -80,9 +81,11 @@ narrower:
   the HID event API.
 - For Linux, the Asahi [`aop_als`](https://github.com/AsahiLinux/linux/blob/414812147991cf1ced35a7345782ea4eef4e73bb/drivers/iio/common/aop_sensors/aop_als.rs) driver has used the lux offset (0x28,
   byte 40) for the VD6286 since 2024-11. [triutama133/ubuntu_asahi_patch](https://github.com/triutama133/ubuntu_asahi_patch/blob/3cb6569aaa56815e86b487111725a4d05406bd00/kernel-patches/README.md)
-  (2026-08-28) described all five channels (0x14..0x24, bytes 20..39) and
-  the color temperature (0x45, byte 69), identified the chip as an ST VD6286, and labeled the
-  channels blue, clear, green, red and IR from its own colored-light tests.
+  described all five channels (0x14..0x24, bytes 20..39) on 2026-08-28 and
+  identified the chip as an ST VD6286. Its first version labeled them in the
+  opposite order (red at 0x14 to violet at 0x24); a revision on 2026-08-30
+  relabeled them blue, clear, green, red and IR from its own colored-light
+  tests and added the color temperature (0x45, byte 69).
 
 The Linux write-up's offsets match mine. What this repository adds: c4 on macOS (the macOS tools
 above read four channels), published raw data with per-channel color responses,

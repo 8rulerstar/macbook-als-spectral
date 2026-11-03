@@ -55,7 +55,7 @@ if subtract:
     print("channels: step minus cover, signed. ratio: share of the positive part "
           "only. lux: not subtracted.")
 
-print(f"{'step':<14}{'n':>4}  {'c0':>7}{'c1':>7}{'c2':>7}{'c3':>7}{'c4':>7}  {'lux':>7}  "
+print(f"{'step':<20}{'n':>4}  {'c0':>7}{'c1':>7}{'c2':>7}{'c3':>7}{'c4':>7}  {'lux':>7}  "
       f"ratio c0..c4         peak")
 for phase, rows in steps:
     ch, lux, n = medians(rows)
@@ -65,7 +65,7 @@ for phase, rows in steps:
     total = sum(pos)
     ratio = [c / total if total else 0.0 for c in pos]
     peak = f"c{ratio.index(max(ratio))}" if total else "-"
-    print(f"{phase[:14]:<14}{n:>4}  " + "".join(f"{c:>7.0f}" for c in ch)
+    print(f"{phase[:20]:<20}{n:>4}  " + "".join(f"{c:>7.0f}" for c in ch)
           + f"  {lux:>7.1f}  " + " ".join(f"{x:.2f}" for x in ratio) + f"  {peak}")
 
 # Warn about runs that look like the light never changed: a weak cover, or

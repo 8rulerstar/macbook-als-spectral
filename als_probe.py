@@ -97,7 +97,8 @@ try:
         if wait:
             # Default Ctrl-C handling while blocked on input().
             signal.signal(signal.SIGINT, signal.default_int_handler)
-            input(f"\nnext: {name}. Get ready, then press Enter ")
+            input(f"\nnext: {name}. Get ready, then press Enter: ")
+            print()
             signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
             # Drop reports during a short countdown: those queued while waiting
             # describe the previous light, and the next ones catch the screen
