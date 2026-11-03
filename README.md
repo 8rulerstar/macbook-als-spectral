@@ -11,8 +11,7 @@ missing channel.
 Measured on a MacBook Pro Mac16,8 (M4 Pro).
 
 > Note on macOS version: the decode below is the 122-byte report. It was
-> color-tested on **macOS 27.0.1** and again on **macOS 27.2** (26B123). A
-> 137-byte report was observed once earlier on 27.2 and is not decoded. See
+> color-tested on **macOS 27.0.1** and again on **macOS 27.2** (26B123). See
 > "macOS 27.2" at the end.
 
 ## What the als report contains (122-byte report)
@@ -37,9 +36,9 @@ channel ratio). This table is from macOS 27.0.1; the 27.2 repeat is at the end:
 
 | screen color | peak channel | c0 | c1 | c2 | c3 | c4 |
 |---|---|---|---|---|---|---|
-| blue  | **c0** | 0.58 | 0.28 | 0.07 | 0.04 | 0.03 |
+| blue  | **c0** | 0.58 | 0.28 | 0.06 | 0.04 | 0.03 |
 | green | **c2** | 0.08 | 0.21 | 0.40 | 0.20 | 0.10 |
-| red   | **c4** | 0.15 | 0.13 | 0.17 | 0.22 | 0.34 |
+| red   | **c4** | 0.15 | 0.12 | 0.17 | 0.22 | 0.34 |
 | white | broad  | 0.24 | 0.22 | 0.25 | 0.14 | 0.15 |
 
 - The peak channel moves c0 (blue) to c2 (green) to c4 (red), consistent with
@@ -48,7 +47,23 @@ channel ratio). This table is from macOS 27.0.1; the 27.2 repeat is at the end:
   neighbor response only; three phone primaries cannot pin down all five.
 - The red separation is the softest (under red, c4 peaks at 0.34 but c0 is 0.15);
   a phone OLED red is not a narrow line, so treat red as the weakest leg of the
-  ordering.
+  ordering. Subtracting the cover step sharpens it (red: c4 0.61, c3 0.22; see
+  "Reproduce"), but a finger is not a true dark reference.
+
+## Why the fifth channel matters
+
+With only c0..c3, the most red-sensitive channel is c3. Its share under a red
+screen is not far from its share under a green one. Adding c4 widens that gap
+several times over (phone OLED screens, no cover subtraction):
+
+| run | c3 share of c0..c3, red / green | c4 share of c0..c4, red / green |
+|---|---|---|
+| 27.0.1 | 0.33 / 0.22 (1.5x) | 0.34 / 0.10 (3.4x) |
+| 27.2   | 0.36 / 0.22 (1.6x) | 0.41 / 0.07 (5.9x) |
+
+So the channel those tools do not read is the one that best separates red from
+green. This is two
+runs with phone primaries, not a calibrated spectral measurement.
 
 ## Cross-check: the driver struct has five-wide arrays
 
@@ -88,7 +103,7 @@ read. I opened a pull request to add it:
 channel at offset 36").
 
 Note this is a layout-specific point: it holds for the 122-byte report
-(seen on 27.0.1 and 27.2). It does not apply to the 137-byte report noted below.
+(seen on 27.0.1 and 27.2).
 
 ## Quick start
 
@@ -135,12 +150,14 @@ gives the same wavelength order:
 | red   | **c4** | 0.13 | 0.10 | 0.15 | 0.21 | 0.41 |
 | white | c0, broad | 0.31 | 0.21 | 0.24 | 0.13 | 0.10 |
 
-Red is again the weakest leg: under red the raw counts were small (c4 about 715,
-lux about 50) versus green (c2 about 11850, lux about 830).
+Across the two runs (different days and OS versions) the blue, green and red
+rows agree within 0.07 per channel, and the peak channel is the same.
 
-Earlier on the same OS version I captured a 137-byte report whose fields looked
-like `float32` at shifted offsets. It did not appear in this run, and I have not
-established when it occurs or what its layout is. The script does not decode it.
+Red is again the weakest leg, and weaker than on 27.0.1: under red c4 was about
+715 against about 339 with the sensor covered (2.1x), versus 3424 against 1056
+(3.2x) on 27.0.1. With the cover step subtracted the red row becomes c3 86 and
+c4 376 with c0..c2 slightly below the cover level, so the red signal here is
+only a few hundred counts. A stronger red source would make this leg firmer.
 
 ## Honest limits
 
@@ -151,24 +168,29 @@ established when it occurs or what its layout is. The script does not decode it.
   confirm the VD6286 channel count against a datasheet; the related VD6283 is
   documented as a 6-channel color sensor, so a separate clear or IR channel at
   another offset is not ruled out.
-- Single machine (Mac16,8). The 122-byte layout was verified on 27.0.1 and 27.2;
-  the 137-byte report seen once on 27.2 is not understood.
+- Single machine (Mac16,8), one run per OS version, phone OLED as the only
+  colored light source. The 122-byte layout was verified on 27.0.1 and 27.2.
 
 ## Reproduce
 
 Standard library only (`ctypes` + IOKit), no external dependencies.
 
-The macOS 27.2 run behind the table above is in
-`data/macos27.2_mac16-8.csv` (same columns as `als_probe.py` output, raw report
-hex included). It was taken with an earlier version of the script: seven steps
-(no flashlight) with labels such as `RED` and `cover sensor`. To recompute
-the table:
+Both runs behind the tables are in `data/` (same columns as `als_probe.py`
+output, raw report hex included):
+
+- `data/macos27.0.1_mac16-8.csv`: eight steps including flashlight. The step
+  labels were in Korean and have been translated to English; nothing else was
+  changed.
+- `data/macos27.2_mac16-8.csv`: taken with an earlier version of the script,
+  seven steps (no flashlight) with labels such as `RED` and `cover sensor`.
+
+To recompute the tables:
 
 ```
+python3 analyze.py data/macos27.0.1_mac16-8.csv
 python3 analyze.py data/macos27.2_mac16-8.csv
+python3 analyze.py data/macos27.0.1_mac16-8.csv --subtract-cover
 ```
-
-The 27.0.1 run is not included.
 
 ## License
 

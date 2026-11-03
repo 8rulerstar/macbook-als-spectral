@@ -13,12 +13,10 @@
 # and Security, Input Monitoring), or running under sudo. If the device cannot
 # be opened the script prints an error and exits.
 #
-# Report layout is macOS-version specific:
-#   122-byte report: 5 uint32 spectral channels at bytes 20..39, float lux at
-#     bytes 40..43. Color-tested on macOS 27.0.1 and on macOS 27.2 (26B123).
-#   137-byte report: observed once earlier on 27.2, layout not established. On
-#     any length other than 122 this script does NOT decode channels; it prints
-#     a warning and logs the raw hex. See the README note on 27.2.
+# Report layout: 122-byte report, 5 uint32 spectral channels at bytes 20..39,
+# float lux at bytes 40..43. Color-tested on macOS 27.0.1 and 27.2 (26B123).
+# On any other length this script does NOT decode channels; it prints a warning
+# and logs the raw hex.
 
 import ctypes, ctypes.util, struct, time, sys, csv, signal, subprocess
 
@@ -91,13 +89,12 @@ def decode(b):
         ch = list(struct.unpack_from("<5I", b, 20))
         lux = struct.unpack_from("<f", b, 40)[0]
         return ch, lux
-    # Other lengths (e.g. the 137-byte report seen once on 27.2): do not guess.
+    # Other lengths: layout unknown. Do not guess.
     if not warned[0]:
         warned[0] = True
         print(f"\n  WARNING: report is {n} bytes, not the 122-byte layout this "
               f"script decodes.")
-        print("  Channels are NOT decoded for this length. Logging raw hex only. "
-              "See the README note on macOS 27.2.")
+        print("  Channels are NOT decoded for this length. Logging raw hex only.")
     return [None] * 5, None
 
 CB = ctypes.CFUNCTYPE(None, V, ctypes.c_int, V, ctypes.c_int, ctypes.c_uint,
