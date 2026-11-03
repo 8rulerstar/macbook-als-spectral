@@ -4,23 +4,36 @@ The Apple Silicon MacBook ambient light sensor (`als`) reports more than lux. It
 HID report on macOS carries five channels, c0..c4, plus lux and a color
 temperature. This repository reads them with a standard-library Python script,
 shows live what the sensor sees, and measures how the channels respond to
-colored light. Two public macOS tools that read this sensor (as of 2026-11-03)
-read only the first four channels; the fifth, c4, separates red from green best
-in my measurements.
+colored light. The public macOS tools I found (as of 2026-11-03) read at most
+four of the channels; the fifth, c4, separates red from green best in my
+measurements.
 
 ![Channel share under each phone-screen color](docs/channels.svg)
 
-**Prior work.** The same five-channel layout (offsets 0x14..0x24, lux at 0x28,
-color temperature at 0x45) was already described for Linux in an Asahi
-enhancement project, [triutama133/ubuntu_asahi_patch](https://github.com/triutama133/ubuntu_asahi_patch/blob/3cb6569aaa56815e86b487111725a4d05406bd00/kernel-patches/README.md)
-(first published 2026-08-28), which labels the channels blue, clear, green,
-red and IR. I found it after doing this work. What this repository adds: the
-macOS HID path, measured color responses with the raw data, the observation
-that macOS tools drop c4, and a different reading of two labels (below).
+**Prior work.** Most of this was public before I started; what is new here is
+narrower:
+
+- On macOS, [olvvier/apple-silicon-accelerometer](https://github.com/olvvier/apple-silicon-accelerometer/blob/d140bda54ff915a97f1015188a0c43247c187079/macimu/__init__.py)
+  has read this same 122-byte HID report since 2026-02-21: lux at byte 40 and
+  "4 spectral channels" at bytes 20..32, unlabeled.
+  [SaintD1smas/TrueTone](https://github.com/SaintD1smas/TrueTone/blob/4bf513544163c230483ace6c40bd88e4760f3993/Sources/TrueTone/AmbientSensor.swift)
+  (2026-08-29) reads the color temperature and four channels through the HID
+  event API.
+- For Linux, the Asahi `aop_als` driver has used the lux offset (0x28) for the
+  VD6286 since 2024-11. [triutama133/ubuntu_asahi_patch](https://github.com/triutama133/ubuntu_asahi_patch/blob/3cb6569aaa56815e86b487111725a4d05406bd00/kernel-patches/README.md)
+  (2026-08-28) described all five channels (0x14..0x24) and the color
+  temperature (0x45), identified the chip as an ST VD6286, and labeled the
+  channels blue, clear, green, red and IR from its own colored-light tests.
+
+I worked these offsets out on macOS without knowing about the Linux write-up;
+its offsets match mine. What this repository adds: c4 on macOS (the macOS tools
+above read four channels), published raw data with per-channel color responses,
+a comparison with the Linux channel labels (two fit these measurements less
+well), the rest of the report's bytes, and a live view.
 
 Measured on one MacBook Pro Mac16,8 (M4 Pro): one run on macOS 27.0.1, two on
-27.2 (26B123). The driver is named `AppleSPUVD6286`, suggesting an ST VD6286;
-not confirmed from a datasheet. I opened a pull request upstream to read c4
+27.2 (26B123). The driver is named `AppleSPUVD6286`; not confirmed from a
+datasheet. I opened a pull request upstream to read c4
 (olvvier/apple-silicon-accelerometer#25).
 
 ## Quick start
@@ -187,20 +200,23 @@ So the channel those tools do not read is the one that best separates red from
 green. This is three runs with phone primaries, not a calibrated spectral
 measurement.
 
-## Channel labels: where this disagrees with the prior work
+## Channel labels: comparison with the prior work
 
-The prior work labels c0..c4 blue, clear, green, red and IR. Two of those do not
-fit these measurements (27.2 run 2 shares):
+The Linux write-up labels c0..c4 blue, clear, green, red and IR, from its own
+colored-light tests. On this machine with phone-screen light, one label does not
+fit and one is only partly supported (27.2 run 2 shares):
 
 - **c1 as "clear" (broadband)**: a clear photodiode should respond to every
-  color. Under a red screen c1 has the smallest share of all five (0.08), and it
-  peaks under blue (0.27) next to c0. It behaves like a blue-green channel.
+  color. Relative to the strongest channel, c1 is 0.42 of c0 under blue and
+  0.48 of c2 under green, but only 0.18 of c4 under red, the smallest share of
+  all five there (0.08). It behaves like a blue-green channel.
 - **c4 as "IR" and c3 as "red"**: under a red screen c4, not c3, has the largest
-  share (0.47 against 0.22), and c4 also stands out with a finger over the
-  sensor (0.29), which passes red and near-infrared. A phone OLED red emits
-  little infrared, so c4 is at least strongly red-sensitive. These tests cannot
-  tell whether it also reaches into the infrared. An IR source such as a TV
-  remote would settle it.
+  share (0.47 against 0.22). A phone OLED red emits little infrared, and under
+  the phone's white LED (also little infrared) c4 responds about as much as the
+  other channels (0.17), so c4 is not an infrared-only channel. A red long-pass
+  channel that also reaches into the near infrared would fit both readings; a
+  finger over the sensor (c4 0.29) passes both, so it cannot tell. An IR source
+  such as a TV remote would settle it.
 
 Labels here stay neutral (c0..c4) for that reason.
 

@@ -2,14 +2,13 @@
 name: My Mac's results
 about: Share what the als sensor reports on your Mac
 title: "Results: <model>, macOS <version>"
-labels: results
 ---
 
 **Model** (`sysctl -n hw.model`):
 
 **macOS version** (`sw_vers -productVersion`):
 
-**Report length** (printed by `als_probe.py`; 122 is the decoded layout):
+**Report length** (122 unless `als_probe.py` printed a length warning):
 
 **`python3 analyze.py out.csv` output:**
 
